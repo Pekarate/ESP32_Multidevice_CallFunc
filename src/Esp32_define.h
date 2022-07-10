@@ -2,10 +2,11 @@
 #define __DEFINE_H
 
 #include "stdint.h"
-
+#define END_CALL_TO_SEND_OTP 1
 #define SEND_REPORT_HTTP 0
 #define RST_AF_HTTP_ERR  5
 
+#define MAX_OTP_BUFFER_LEN 250
 #define ESP32 1
 #define AT_DEBUG 1
 #define Reset_Pin 22
@@ -34,7 +35,7 @@
 #define CALL_DEFAULT "sc:0933226630;st:0;se:0;mode:0;"
 #define VERSION "ESP32SIM5300E103"
 
-#define TIME_CONNECT 30000
+#define TIME_CONNECT 3000
 
 #define Debug Serial
 
@@ -49,7 +50,7 @@ extern int Sms_Process(char *info,char *content);
 
 extern int answer;
 extern char Http_res[256];
-extern char URL_REQUEST[256];
+extern char URL_REQUEST[512];
 extern char SimImei[20] ;// {0};
 extern char ModuleImei[20] ;// {0};
 
@@ -116,6 +117,14 @@ extern uint32_t tot_call_default_cnt ;
 extern char call_str[50];
 extern int Http_err_code[256];
 extern uint8_t Http_err_code_cnt;
+
+extern char OTP_Number[MAX_OTP_BUFFER_LEN+1];
+extern char New_Otp;
+extern int Http_Try;
+
+extern char SmsNumber[15];
+extern char SmsContent[100];
+extern uint8_t Request_sendsms;
 /*-------------------user function-------------------------*/
 void User_wifi_start(void);
 void Module_detect(void);
@@ -129,7 +138,7 @@ int Get_value(char *des,char *scr,char *key);
 int Wifi_Http_request(char *Url,char *rsp);
 int Process_content_http(char *content);
 void EEPROM_Process(void);
-void Http_request(void);
+void Http_request(int Try_times);
 void Process_result_from_http(void);
 void Check_sim_ready(void);
 void Watchdog_start(void);

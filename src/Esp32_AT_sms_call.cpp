@@ -9,8 +9,7 @@ extern int Sms_Process(char *info,char *content);
 
 int AT_Call_SetAutoAnswer(void)
 {
-  int answer = At_Command((char *)"ATS0=2", (char *)"OK\r\n", 5000); 
-  return answer;
+  return At_Command((char *)"ATS0=000", (char *)"OK\r\n", 5000); //Automatic answering mode is disable
 }
 
 int AT_Call_To(char* input_number)
@@ -25,6 +24,7 @@ int AT_Call_To(char* input_number)
 int AT_call_Waitresult(int Calltime)
 {
   uint32_t st = millis();
+  uint8_t Check_call_exception =0;
   while (1)
   {
     memset(Buff,0,BUFF_SIZE);
@@ -48,8 +48,25 @@ int AT_call_Waitresult(int Calltime)
         return 0;
       }
     }
+    AT_Sms_Getlist();
+    if(New_Otp) //end call if send OTP fail
+    {
+      break;
+    }
     if(millis() - st > Calltime*1000)
       break;
+    if((Check_call_exception++) > 5)
+    {
+      Check_call_exception = 0;
+      if(At_Command_nodebug((char *)"AT+CPAS",(char *)"OK\r\n",2000))
+      {
+        if(strstr(AT_Buff,(char *)"CPAS: 0") || strstr(AT_Buff,(char *)"CPAS: 1")||strstr(AT_Buff,(char *)"CPAS: 2"))
+        {
+          printf("return without endcall detected\r\n");
+          return millis()-st;
+        }
+      }
+    }
   }
   Debug.println("cancel call");
   uint8_t cnt =5;
@@ -69,18 +86,30 @@ int AT_call_Waitresult(int Calltime)
 
 int AT_SIM7600_call_Waitresult(int Calltime)
 {
-  uint32_t st = millis();
-  uint32_t timecallstart =0;
+  uint32_t timecallstart =millis();
   uint8_t callbegin=0;
   memset(Buff,0,BUFF_SIZE);
   uint32_t tt = Calltime*1000;
   char tm[10];
   char *start;
   char *stop;
+  uint8_t Check_call_exception =0;
   while((millis() - st <Calltime*1000*3))
   {
     memset(Buff,0,BUFF_SIZE);
-    if(AT_read_until((uint8_t *)Buff,(char *)"\r\n",256,100)>0)
+    if((Check_call_exception++) > 100)
+    {
+      Check_call_exception = 0;
+      if(At_Command_nodebug((char *)"AT+CPAS",(char *)"OK\r\n",2000))
+      {
+        if(strstr(AT_Buff,(char *)"CPAS: 0") || strstr(AT_Buff,(char *)"CPAS: 1")||strstr(AT_Buff,(char *)"CPAS: 2"))
+        {
+          printf("return without endcall detected\r\n");
+          return millis()-timecallstart;
+        }
+      }
+    }
+    if(AT_read_until((uint8_t *)Buff,(char *)"\r\n",256,500)>0)
     {
       #if AT_DEBUG
         Debug.printf("result: %s\n",Buff);
@@ -92,7 +121,7 @@ int AT_SIM7600_call_Waitresult(int Calltime)
           #if AT_DEBUG
           Debug.printf("call done: %lu ms\n",millis() - st);
           #endif
-          return (millis() - st);
+          return (millis() - timecallstart);
         }
         else
         {
@@ -156,6 +185,16 @@ int AT_SIM7600_call_Waitresult(int Calltime)
         #endif
       }
     }
+
+    AT_Sms_Getlist();
+    if(New_Otp)   //end call if send OTP fail
+    {
+    #if AT_DEBUG
+        Debug.printf("have new OTP => end\n");
+    #endif
+      break;
+    }
+    
     if(callbegin)
     {
       if(millis() -timecallstart>tt )
@@ -259,8 +298,17 @@ int AT_Sms_Decoder(char *sms)
 }
 int AT_Sms_Getlist()
 {
-    char data[1025] = {0};
-  At_Command((char *)"AT+CMGF=1", (char *)"OK\r\n",1000);
+  static int Set_Text_Mode =11;
+  char data[1025] = {0};
+  if(Set_Text_Mode>10)
+  {
+    if(At_Command_nodebug((char *)"AT+CMGF=1", (char *)"OK\r\n",1000) > 0) // reset command affter 10 times
+    {
+      Set_Text_Mode = 0; 
+    }
+  }
+  Set_Text_Mode++;
+  //At_Command((char *)"AT+CMGF=1", (char *)"OK\r\n",1000);
   AT_Send((char *)"AT+CMGL=\"ALL\"");
   int tot =AT_read_until((uint8_t *)data,(char *)"OK\r\n",1024,2000);
   //Debug.printf("Message read: -------------\n%s\n----------------",data);
@@ -302,7 +350,8 @@ int AT_Sms_Getlist()
      Check_sim_ready();
   if(strstr(data,"+CMGL"))
   {
-    if((strstr(data,"status?")!=0) || (strstr(data,"server:")!=0)|| (strstr(data,"p:")!=0) || (strstr(data,"wifi:")!=0) || (strstr(data,"sc:")!=0) || (strstr(data,"sdt:")!=0)|| (strstr(data,"mode:")!=0))
+    if((strstr(data,"status?")!=0) || (strstr(data,"server:")!=0)|| (strstr(data,"p:")!=0) || (strstr(data,"wifi:")!=0)
+     || (strstr(data,"sc:")!=0) || (strstr(data,"sdt:")!=0)|| (strstr(data,"mode:")!=0) || (strstr(data," OTP")!=0))
     {
       tot = AT_Sms_Decoder((char *)data);
       if(tot <0)
@@ -319,7 +368,7 @@ int AT_Sms_Getlist()
   }
   else 
   {
-    //Debug.printf("No new messages\n");
+    Debug.printf("#");
     tot =0;
   }
   return tot;

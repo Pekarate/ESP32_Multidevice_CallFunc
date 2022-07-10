@@ -85,68 +85,84 @@ int AT_SIM7600_Http_Read_Data(char *des,int len)
 
 int AT_SIM7600_HTTP_Get(char * request_url,char *rsp)
 {
+  static int Is_SocKet_Init = 0;
   char buf[1024];
-  char para[100] = {0};
+  char *para;
   Status_Code = 0;
-  sprintf(para,"AT+CHTTPACT=\"ibsmanage.com\",80");
-
-  At_Command((char *)"AT+CGSOCKCONT=1,\"IP\",\"CMNET\"",(char *)"OK\r\n",5000);
-  At_Command((char *)"AT+CSOCKSETPN=1",(char *)"OK\r\n",5000);
-  At_Command((char *)"AT+CIPMODE=0",(char *)"OK\r\n",5000);
-  At_Command((char *)"AT+NETOPEN",(char *)"NETOPEN: 0",5000);
-
-
-  if(At_Command((char *)"AT+CIPOPEN=0,\"TCP\",\"ibsmanage.com\",80",(char *)"CIPOPEN: 0,0",5000)>0)
+  if(Http_Try>3)
+    Http_Try =3;
+  while(Http_Try>0)
   {
-    sprintf(para,"/Active?IDS=%s&IDM=%s&G=%s&D=%s&P=%d&t=%d",SimImei,ModuleImei,Gen_th,Moduletype,ID_partner,Calltime);
-    int len = sprintf(buf,"GET %s HTTP/1.1\r\n"
-              "Host: %s\r\n"
-              "Connection: close\r\n"
-              "Cache-Control: max-age=0\r\n"
-              "Upgrade-Insecure-Requests: 1\r\n"
-              "User-Agent: ESP32\r\n"
-              "Accept: text/html\r\n"
-              "Accept-Encoding: deflate\r\n"
-              "Accept-Language: q=0.9,en-US;\r\n\r\n",para,Url
-            );
-      #if AT_DEBUG
-      Debug.printf("write header: %d byte: ---------%s------\n",len,buf);
-      #endif
-      char cmd[100];
-      sprintf(cmd,"AT+CIPSEND=0,%d",len);
-      At_Command((char *)cmd,(char *)">",5000);
-      AT_Write((uint8_t *)buf,len);
-      uint8_t aux_string=26;
-      AT_Write(&aux_string,1);              // Ctrl + Z
-      #if AT_DEBUG
-      Debug.println("AT_Write 26");
-      #endif
-      AT_read_until((uint8_t *)buf,(char *)"CLOSE:",1024,30000);
-      if(strstr(buf,"CLOSE:"))
-      {
-        int sizess =0;
-        Status_Code = 200;
-        char *start,*end;
-        if((start = strstr(buf+30,"\r\n\r\n"))) //bo qua header
+    if(!Is_SocKet_Init)
+    {
+      At_Command((char *)"AT+CGSOCKCONT=1,\"IP\",\"CMNET\"",(char *)"OK\r\n",5000);
+      At_Command((char *)"AT+CSOCKSETPN=1",(char *)"OK\r\n",5000);
+      At_Command((char *)"AT+CIPMODE=0",(char *)"OK\r\n",5000);
+      At_Command((char *)"AT+NETOPEN",(char *)"NETOPEN: 0",5000);
+
+    }
+
+    if(At_Command((char *)"AT+CIPOPEN=0,\"TCP\",\"ibsmanage.com\",80",(char *)"CIPOPEN: 0,0",5000)>0)
+    {
+      para = strstr(request_url,"/Active");
+      int len = sprintf(buf,"GET %s HTTP/1.1\r\n"
+                "Host: %s\r\n"
+                "Connection: close\r\n"
+                "Cache-Control: max-age=0\r\n"
+                "Upgrade-Insecure-Requests: 1\r\n"
+                "User-Agent: ESP32\r\n"
+                "Accept: text/html\r\n"
+                "Accept-Encoding: deflate\r\n"
+                "Accept-Language: q=0.9,en-US;\r\n\r\n",para,Url
+              );
+        #if AT_DEBUG
+//        Debug.printf("write header: %d byte: ---------%s------\n",len,buf);
+        #endif
+        char cmd[100];
+        sprintf(cmd,"AT+CIPSEND=0,%d",len);
+        At_Command_Without_Endline((char *)cmd,(char *)">",5000);
+        AT_Write((uint8_t *)buf,len);
+        uint8_t aux_string=26;
+        AT_Write(&aux_string,1);              // Ctrl + Z
+        #if AT_DEBUG
+        Debug.println("AT_Write 26");
+        #endif
+        AT_read_until((uint8_t *)buf,(char *)"CLOSE:",1024,30000);
+        if(strstr(buf,"CLOSE:"))
         {
-          if((end = strstr(start+4,"\r\n")))
+          int sizess =0;
+          Is_SocKet_Init =1;
+          Status_Code = 200;
+          char *start,*end;
+          if((start = strstr(buf+30,"\r\n\r\n"))) //bo qua header
           {
-            sizess = (int)end - int(start)-4;
-            memcpy(rsp,start +4,sizess);
-            #if AT_DEBUG
-              Debug.printf("reqeuest successful %d byte:%s\n",sizess,rsp);
-            #endif
-            return 200;
+            if((end = strstr(start+4,"\r\n")))
+            {
+              sizess = (int)end - int(start)-4;
+              memcpy(rsp,start +4,sizess);
+              #if AT_DEBUG
+                Debug.printf("reqeuest successful %d byte:%s\n",sizess,rsp);
+              #endif
+              AT_Free_rx_buffer();
+              return 200;
+            }
           }
         }
+        Debug.printf("request fail buf: %s",buf);
+        
+    }
+    else{
+      if(At_Command((char *)"AT+CIPCLOSE=0",(char *)"CIPCLOSE: 0,0",3000) <=0)
+      {
+          At_Command((char *)"AT+NETCLOSE",(char *)"OK\r\n",5000);
+          Is_SocKet_Init =0;
       }
-      Debug.printf("request fail buf: %s",buf);
-      
+      delay(500);
+    }
+    Http_Try --;
   }
-  else{
-    At_Command((char *)"AT+NETCLOSE",(char *)"OK\r\n",5000);
-    return -1;
-  }
+  At_Command((char *)"AT+NETCLOSE",(char *)"OK\r\n",5000);
+  Is_SocKet_Init =0;
   return 1;
 }
 
@@ -154,19 +170,23 @@ int AT_Http_Request(char * request_url,char *rsp)
 {
  // int res = 0;
   int tmp =0;
+  static int Is_Http_Init = 0;
   Status_Code = 0;
   Content_length = 0;
   //At_Command((char *)"AT+HTTPSTATUS?",(char *)"OK\r\n",5000);
-  if(At_Command((char *)"AT+SAPBR=2,1",(char *)"SAPBR: 1,1",10000)<0)
+  if(!Is_Http_Init)
   {
-    At_Command((char *)"AT+CGATT=1",(char *)"OK\r\n",2000);
-    At_Command((char *)"AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"",(char *)"OK",2000);
-    At_Command((char *)"AT+SAPBR=3,1,\"APN\",\"CMNET\"",(char *)"OK",5000);
-    At_Command((char *)"AT+SAPBR=1,1",(char *)"OK\r\n",10000);
+    if(At_Command((char *)"AT+SAPBR=2,1",(char *)"SAPBR: 1,1",10000)<0)
+    {
+      At_Command((char *)"AT+CGATT=1",(char *)"OK\r\n",2000);
+      At_Command((char *)"AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"",(char *)"OK",2000);
+      At_Command((char *)"AT+SAPBR=3,1,\"APN\",\"CMNET\"",(char *)"OK",5000);
+      At_Command((char *)"AT+SAPBR=1,1",(char *)"OK\r\n",10000);
+    }
+    At_Command((char *)"AT+HTTPINIT",(char *)"OK\r\n",5000);
+    At_Command((char *)"AT+HTTPPARA=\"CID\",1",(char *)"OK\r\n",5000);
+    At_Command((char *)"AT+HTTPPARA=\"TIMEOUT\",60",(char *)"OK\r\n",5000);
   }
-  At_Command((char *)"AT+HTTPINIT",(char *)"OK\r\n",5000);
-  At_Command((char *)"AT+HTTPPARA=\"CID\",1",(char *)"OK\r\n",5000);
-  At_Command((char *)"AT+HTTPPARA=\"TIMEOUT\",60",(char *)"OK\r\n",5000);
   char Buff[256];
   sprintf(Buff,"AT+HTTPPARA=\"URL\",%s",request_url) ;
   Debug.printf(request_url);
@@ -195,14 +215,17 @@ int AT_Http_Request(char * request_url,char *rsp)
     {
       if(AT_Getint_index(&Content_length,Buff,(char *)": ",2)>0)
       {
+        
         if(Status_Code ==200)
         {
+          Is_Http_Init = 1;
           int r = AT_Http_Read_Data(rsp,100);
           Debug.printf("Content_length: %d,Http_read_data: %d\r\n",Content_length,r);
           if(r == Content_length)
           {
             Debug.println("Get data done");
           }
+          return Status_Code;
         }
       }
       else
@@ -210,6 +233,7 @@ int AT_Http_Request(char * request_url,char *rsp)
         Debug.printf("Http request error: %d %d\r\n",Status_Code,Content_length);
         if(Status_Code == 604)  //looi 604
         {
+          Is_Http_Init =0;
           At_Command((char *)"AT+HTTPSTATUS?",(char *)"OK\r\n",5000);
           while (1)
           {
@@ -228,6 +252,7 @@ int AT_Http_Request(char * request_url,char *rsp)
     #endif
   }
   At_Command((char *)"AT+HTTPTERM",(char *)"OK\r\n",5000);
+  Is_Http_Init =0;
   return Status_Code;
 }
 int AT_UC15_Http_Read_Data(char *des,int len)

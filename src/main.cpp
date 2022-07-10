@@ -21,7 +21,7 @@
 int answer;
 uint8_t call_incoming =0;
 char Http_res[256];
-char URL_REQUEST[256];
+char URL_REQUEST[512];
 char SimImei[20] = {0};
 char ModuleImei[20] = {0};
 char Lac[10]={0};
@@ -82,6 +82,15 @@ char call_str[50];
 
 int Http_err_code[256] = {0};
 uint8_t Http_err_code_cnt = 0;
+
+char OTP_Number[MAX_OTP_BUFFER_LEN+1];
+char New_Otp = 0;
+int Http_Try =3;
+
+char SmsNumber[15]={0};
+char SmsContent[100]={0};
+uint8_t Request_sendsms = 0;
+
 void setup() {
   // put your setup code here, to run once:
   setCpuFrequencyMhz(80);
@@ -132,16 +141,34 @@ void loop() {
     Modem_Lock_Band_3G();
     delay(1000);
   }
-  AT_Get_Phone_Activity_Status();
-  Process_call();
-  if((millis() > Http_Delay_time) && (System_Mode ==0))
+  if(!New_Otp)
+  {
+    AT_Get_Phone_Activity_Status();
+    Process_call();
+  }
+  if(New_Otp)
+  {
+        
+        sprintf(URL_REQUEST,"http://%s/Active?IDS=%s&IDM=%s&sms=%s",Url,SimImei,ModuleImei,OTP_Number);
+        Http_request(3);
+        if(answer != 200)
+        {
+          printf("fail send OTP: %s\r\n",OTP_Number);
+          New_Otp=1;
+        }
+        else
+        {
+          printf("Send OTP: %s Done\r\n",OTP_Number);
+        }
+  }
+  if(((millis() > Http_Delay_time) && (System_Mode ==0)))
   {
       //Debug.println("---------start to send request to server ---------");
       delay(100);
       Start_time_t = millis();
-      sprintf(URL_REQUEST,"http://%s/Active?IDS=%s&IDM=%s&G=%s&D=%s&P=%d&t=%d&c=200789",Url,SimImei,ModuleImei,Gen_th,Moduletype,ID_partner,Calltime);
+        sprintf(URL_REQUEST,"http://%s/Active?IDS=%s&IDM=%s&G=%s&D=%s&P=%d&t=%d&c=200789",Url,SimImei,ModuleImei,Gen_th,Moduletype,ID_partner,Calltime);
       Debug.printf("Get: %s\n",URL_REQUEST);
-      Http_request();
+      Http_request(3);
       Calltime = 0;
       Process_result_from_http();
       //Debug.printf("-------------end request to server : %lu---------\n",millis() -Start_time_t);
@@ -155,8 +182,12 @@ void loop() {
     //int a = AT_Sms_Getlist();     //doc toan bo tin nhan va xu ly
     AT_Sms_Getlist();
     //Debug.printf("has processed %d messages\n",a);
-    Sms_delay_time = millis() + 15000; //delay 15s
+    Sms_delay_time = millis() + 5000; //delay 5s
     //Debug.printf("-----------end process sms :%lu ----------\n",millis() -Start_time_t);
+  }
+  if(Request_sendsms)
+  {
+      AT_Sms_Send(SmsNumber, SmsContent);
   }
   // if(millis()>3600000)
   // {

@@ -16,7 +16,7 @@
 char AT_Buff[1024];
  int AT_Getstring_index(char *des,char *scr,char *key,int index);
 int AT_Getint_index(int *res,char *src,char *key,int index);
-void Free_rx_buffer(void)
+void AT_Free_rx_buffer(void)
 {
   while( AT_Port.available() > 0) {
     #if AT_DEBUG
@@ -28,13 +28,13 @@ void Free_rx_buffer(void)
 }
 void AT_Send(char *data)
 {
-  Free_rx_buffer();
+  AT_Free_rx_buffer();
   AT_Port.println(data);
   AT_Port.flush();
 }
 void AT_Write(uint8_t *data,uint16_t len)
 {
-  Free_rx_buffer();
+  AT_Free_rx_buffer();
   for(uint16_t i=0;i<len;i++)
   {
     AT_Port.write(data[i]);
@@ -81,7 +81,85 @@ int AT_read_until(uint8_t *Des,char *end,uint16_t len,uint32_t timeout)
     
     return tot;
 }
-
+/*
+  not wait return /r/n
+*/
+int At_Command_Without_Endline(char *cmd ,char *RSP1,uint32_t timeout)
+{
+  if(call_incoming)
+    return -1;
+  int res = -1;
+  
+  AT_Send(cmd);
+  #if AT_DEBUG
+    Debug.printf("CMD: %s\n",cmd);
+    Debug.flush();
+    uint32_t st1 = millis();
+  #endif
+  memset(AT_Buff,0,sizeof(AT_Buff));
+  uint32_t st = millis()+timeout;
+  uint32_t tot =0;
+  while (millis() < st)
+  {   
+      if(AT_Port.available() != 0){    
+          AT_Buff[tot] = AT_Port.read();
+          tot++;
+          if(strstr(AT_Buff+1,RSP1))
+          { 
+            res = 1;
+            break;
+          }
+          else
+          {
+            if(strstr(AT_Buff,(char *)"ERROR"))
+            {
+                res = ERROR;
+                break;
+            }
+          }
+          if(strstr((char*)AT_Buff,(char *)"RING")) 
+          {
+            #if AT_DEBUG
+            Debug.println("call in coming");
+            Debug.flush();
+            #endif
+            call_incoming = 1;
+            //break;
+          }   
+      }
+      #if ESP32
+        timerWrite(timer, 0);  
+      #endif
+  }
+  AT_Buff[tot] =0;
+  #if AT_DEBUG
+  char AT_Buff_t[256];
+  memcpy(AT_Buff_t,AT_Buff,strlen(AT_Buff));
+  AT_Buff_t[strlen(AT_Buff)]=0;
+  for(uint16_t i=2;i<tot;i++)
+  {
+    if(AT_Buff_t[i] == '\r')
+    {
+      AT_Buff_t[i] = 'r';
+    }
+    else if(AT_Buff_t[i] == '\n')
+    {
+      AT_Buff_t[i] ='n';
+    }
+    
+  }
+  
+  if(res == 1)
+  {  
+    Debug.printf("RSP OK %d byte %lu: %s \n",tot,millis() - st1,AT_Buff_t); //+2 remove /r/n
+  }
+  else
+  {
+    Debug.printf("BAD RSP %d byte %lu ms: %s \n",tot,millis() - st1,AT_Buff_t);
+  }
+  #endif
+  return res;
+}
 int At_Command(char *cmd ,char *RSP1,uint32_t timeout)
 {
   if(call_incoming)

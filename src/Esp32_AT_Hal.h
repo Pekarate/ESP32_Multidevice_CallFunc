@@ -3,10 +3,11 @@
 
 #include "stdint.h"
 
-void Free_rx_buffer(void);
+void AT_Free_rx_buffer(void);
 void AT_Port_Init(int Baud);
 void AT_Send(char *data);
 int At_Command(char *cmd ,char *RSP1,uint32_t timeout);
+int At_Command_Without_Endline(char *cmd ,char *RSP1,uint32_t timeout);
 int At_Command1(char *cmd ,char *RSP1,uint32_t timeout);
 int At_Command_nodebug(char *cmd ,char *RSP1,uint32_t timeout);
 void User_command(uint32_t  timout) ;

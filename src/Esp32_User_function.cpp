@@ -287,6 +287,7 @@ int Modem_Lock_Band_3G()
       sprintf(Gen_th,"2G");
       return 1;
   }
+  return 0;
 }
 void Get_info_module(void)
 {
@@ -330,16 +331,30 @@ int AT_Proces_Listen(uint32_t maxTime)
   uint32_t StartTime = millis();
   while(Timetmp > millis())
   {
-    int s = AT_read_until(tmp,(char *)"CARRIER"),256,5000);
+    if(At_Command_nodebug((char *)"AT+CPAS",(char *)"OK\r\n",2000))
+    {
+      if(strstr(AT_Buff,(char *)"CPAS: 0") || strstr(AT_Buff,(char *)"CPAS: 1")||strstr(AT_Buff,(char *)"CPAS: 2"))
+      {
+        printf("return with out endcall detected\r\n");
+        return millis() - StartTime;
+      }
+    }
+    int s = AT_read_until(tmp,(char *)"CARRIER",256,5000);
     if(s > 0)
     {
       tmp[s] = 0;
       if(strstr((char *)tmp,"CARRIER")) //end call
       {
-        return millis() - Timetmp;
+        return millis() - StartTime;
       }
     }
+    AT_Sms_Getlist();
+    if(New_Otp)
+    {
+      return millis() - StartTime;
+    }
   }
+  return maxTime;
 }
 int AT_Get_Phone_Activity_Status(void)
 {
@@ -356,7 +371,7 @@ int AT_Get_Phone_Activity_Status(void)
       Debug.println("call detected");
       uint8_t tmp[256] = {0};
       uint8_t i =0;
-      for( i=0;i<10;i++)
+      for( i=0;i<20;i++)
       {
         if(At_Command((char *)"ATA",(char *)"OK",1000) > 0)
         {
@@ -366,7 +381,7 @@ int AT_Get_Phone_Activity_Status(void)
         {
           Debug.printf("ATA FAIL call: %s \n",AT_Buff);
         }
-        delay(700);
+        delay(1000);
       }
       uint8_t incall =0;
       if(i>=10)
@@ -387,9 +402,11 @@ int AT_Get_Phone_Activity_Status(void)
       {
           Status_Next = LISTENING;
           Debug.println("call start");
-          Calltime = millis();
-          AT_read_until(tmp,(char *)"CARRIER",256,20*60*1000);
-          Calltime = millis() - Calltime;
+          // Calltime = millis();
+
+          // //AT_read_until(tmp,(char *)"CARRIER",256,20*60*1000);
+          // Calltime = millis() - Calltime;
+          Calltime = AT_Proces_Listen(20*60*1000);
           Calltime = Calltime/1000;
           tot_listen_time +=Calltime;
           tot_listen_cnt++;
@@ -535,6 +552,55 @@ void Send_report(char *sdt)
   Debug.printf("send %d byte: %s TO %s:",s,tmp,sdt);
   AT_Sms_Send(sdt,tmp);
 }
+
+int Get_OTP_Number(char *SMScontent,uint16_t len)
+{
+  int index= 0;
+  for(int i=0;i< len;i++)
+  {
+      if((SMScontent[i]>('0'-1)) && (SMScontent[i]<('9'+1)))
+      {
+          OTP_Number[index] = SMScontent[i];
+          index++;
+      }
+      else if((index == 6) && (SMScontent[i] =' '))
+      {
+         if(i == 6)
+         {
+             OTP_Number[6] =0;
+             return 1;
+         }
+         else if(SMScontent[i-7] ==' ')
+         {
+             OTP_Number[6] =0;
+             return 1;
+         }
+         else
+         {
+            index=0;
+         }
+      }
+      else
+      {
+          index = 0;
+      }
+  }
+  if(len>MAX_OTP_BUFFER_LEN)
+  {
+      len = MAX_OTP_BUFFER_LEN;
+  }
+  for(int i=0;i< len;i++)
+  {
+    if(!(((SMScontent[i]>='0') && (SMScontent[i]<='9'))||((SMScontent[i]>='A') && (SMScontent[i]<='Z'))||((SMScontent[i]>='a') && (SMScontent[i]<='z'))))
+    {
+      SMScontent[i]='_';  //remove 0x20
+    }
+  }
+  memcpy(OTP_Number,SMScontent,len);
+  OTP_Number[len]=0;
+  return 0;
+}
+
 int Sms_Process(char *info,char *content)
 {
   char valtmp[50];
@@ -604,6 +670,28 @@ int Sms_Process(char *info,char *content)
           Debug.printf("sms set wifi error\n");
       }
   }
+  else if(strstr(content," OTP"))
+  {
+
+    Get_OTP_Number(content,strlen(content));
+#if END_CALL_TO_SEND_OTP
+    printf("send OTP: %s\r\n",OTP_Number);
+    sprintf(URL_REQUEST,"http://%s/Active?IDS=%s&IDM=%s&sms=%s",Url,SimImei,ModuleImei,OTP_Number);
+    Http_request(1);
+    if(answer != 200)
+    {
+      printf("fail send OTP: %s\r\n",OTP_Number);
+      New_Otp=1;
+    }
+    else
+    {
+      printf("Send OTP: %s Done\r\n",OTP_Number);
+    }
+#else
+    New_Otp = 1;
+#endif
+    
+  }
   return -1;
 }
 int Wifi_Http_request(char *Url,char *rsp)
@@ -629,6 +717,13 @@ int Process_content_http(char *content)
 {
   char tmp[50];
   int  tmp_t=0;
+  if(Get_value(SmsNumber,content,(char *)"$sms:")>0)
+  {
+    if(Get_value(SmsContent,content,(char *)"$nd:")>0)
+    {
+      Request_sendsms = 1;
+    }
+  }
   if(Get_value(CallPhone,content,(char *)"$c:")>0)
   {
     if(Get_value(tmp,content,(char *)"$t:")>0)
@@ -718,15 +813,7 @@ void Process_call(void)
       {
           Status_Next = CALLING;
           int res;
-          if(Module_type == TYPE_SIM7600CE)
-          {
-            res = AT_SIM7600_call_Waitresult(Calltime);
-          }
-          else if(Module_type == TYPE_A7600C)
-          {
-            res = AT_SIM7600_call_Waitresult(Calltime);
-          }
-          else if(Module_type == TYPE_SIM5320E)
+          if((Module_type == TYPE_SIM7600CE) || (Module_type == TYPE_A7600C) || (Module_type == TYPE_SIM5320E))
           {
             res = AT_SIM7600_call_Waitresult(Calltime);
           }
@@ -753,9 +840,10 @@ void Process_call(void)
       Callrequest =0;
   }
 }
-void Http_request(void)
+void Http_request(int Try_times)
 {
     answer = 0;
+    Http_Try = Try_times;
     if(!Wifi_is_connected())
       {
           Check_sim_ready();
@@ -763,15 +851,19 @@ void Http_request(void)
           //
           if(Module_type == TYPE_UC15)
             answer= AT_UC15_HTTP_Get(URL_REQUEST,Http_res);
-          else if(Module_type == TYPE_SIM7600CE)
+          else if((Module_type == TYPE_SIM7600CE) ||(Module_type == TYPE_A7600C) || 
+                  (Module_type == TYPE_SIM5320E))  
+          {
             answer= AT_SIM7600_HTTP_Get(URL_REQUEST,Http_res);
-          else if(Module_type == TYPE_A7600C)
-            answer= AT_SIM7600_HTTP_Get(URL_REQUEST,Http_res);
-          else if(Module_type == TYPE_SIM5320E)
-            answer= AT_SIM7600_HTTP_Get(URL_REQUEST,Http_res);
-          else
-          {  answer = AT_Http_Request(URL_REQUEST,Http_res);}
-      }
+          }  
+          // else if(Module_type == TYPE_SIM5300E)
+          // {
+          //   answer= AT_SIM5300_HTTP_Get(URL_REQUEST,Http_res);
+          // } 
+          else //Module_type == TYPE_SIM5300E
+          {  
+            answer = AT_Http_Request(URL_REQUEST,Http_res);}
+          }
       else
       {
           Debug.println("Requet over wifi");
@@ -793,6 +885,7 @@ void Process_result_from_http(void)
 {
     if(answer ==200)
     {
+        New_Otp=0;
         Calltime = 0; // reset time call
         Debug.printf("HTTP_request: %d-> %s",answer,Http_res);
         /*---------------ota----------------------*/
