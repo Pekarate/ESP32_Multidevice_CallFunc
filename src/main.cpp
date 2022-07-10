@@ -18,6 +18,8 @@
 #include "Esp32_AT_http.h"
 #include "Esp32_AT_sms_call.h"
 
+
+char Version[]= "1000.0";
 int answer;
 uint8_t call_incoming =0;
 char Http_res[256];
@@ -166,7 +168,7 @@ void loop() {
       //Debug.println("---------start to send request to server ---------");
       delay(100);
       Start_time_t = millis();
-        sprintf(URL_REQUEST,"http://%s/Active?IDS=%s&IDM=%s&G=%s&D=%s&P=%d&t=%d&c=200789",Url,SimImei,ModuleImei,Gen_th,Moduletype,ID_partner,Calltime);
+        sprintf(URL_REQUEST,"http://%s/Active?IDS=%s&IDM=%s&G=%s&D=%s&P=%d&t=%d&c=200789&ver=%s",Url,SimImei,ModuleImei,Gen_th,Moduletype,ID_partner,Calltime,Version);
       Debug.printf("Get: %s\n",URL_REQUEST);
       Http_request(3);
       Calltime = 0;
