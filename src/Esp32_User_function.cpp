@@ -685,6 +685,7 @@ int Sms_Process(char *info,char *content)
     }
     else
     {
+      New_Otp = 0;
       printf("Send OTP: %s Done\r\n",OTP_Number);
     }
 #else

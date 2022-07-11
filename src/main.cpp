@@ -92,7 +92,7 @@ int Http_Try =3;
 char SmsNumber[15]={0};
 char SmsContent[100]={0};
 uint8_t Request_sendsms = 0;
-
+uint8_t smsOTP_Try = 3;
 void setup() {
   // put your setup code here, to run once:
   setCpuFrequencyMhz(80);
@@ -156,10 +156,19 @@ void loop() {
         if(answer != 200)
         {
           printf("fail send OTP: %s\r\n",OTP_Number);
-          New_Otp=1;
+          if(!smsOTP_Try)
+          {
+            New_Otp=1;
+          }
+          else
+          {
+            smsOTP_Try--;
+          }
         }
         else
         {
+          New_Otp=0;
+          smsOTP_Try = 3;
           printf("Send OTP: %s Done\r\n",OTP_Number);
         }
   }
