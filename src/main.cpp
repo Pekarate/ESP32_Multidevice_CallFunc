@@ -110,11 +110,14 @@ void setup() {
   LED_NET_LOW;
   Debug.printf("ID_partner: %d; Url: %s\n",ID_partner,Url);
   LED_NET_HIGH;
+  #ifdef USE_WIFI
   User_wifi_start();
+  #endif
   AT_Device_Init(115200);
   LED_NET_LOW;
   delay(1000);
   AT_Call_SetAutoAnswer();
+
   LED_NET_HIGH;
   delay(1000);
   Module_detect();
@@ -132,6 +135,7 @@ void setup() {
   LED_NET_LOW;
   delay(1000);
   ID_partner =34;
+  AT_Call_SetAutoCLCC();
 }
 void loop() {
   LED_NET_HIGH;

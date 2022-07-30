@@ -12,6 +12,15 @@ int AT_Call_SetAutoAnswer(void)
   return At_Command((char *)"ATS0=000", (char *)"OK\r\n", 5000); //Automatic answering mode is disable
 }
 
+int AT_Call_SetAutoCLCC(void)
+{
+  if( Module_type == TYPE_A7600C)
+  {
+    return At_Command((char *)"AT+CLCC=0", (char *)"OK\r\n", 5000); //Automatic answering mode is disable
+  }
+  return 1;
+}
+
 int AT_Call_To(char* input_number)
 {
   char aux_string[50];
@@ -90,11 +99,12 @@ int AT_SIM7600_call_Waitresult(int Calltime)
   uint8_t callbegin=0;
   memset(Buff,0,BUFF_SIZE);
   uint32_t tt = Calltime*1000;
-  char tm[10];
+  char tm[10] = {0};
   char *start;
   char *stop;
   uint8_t Check_call_exception =0;
-  while((millis() - st <Calltime*1000*3))
+  int rec_cnt =0;
+  while((millis() - timecallstart) <(Calltime*1000*3))
   {
     memset(Buff,0,BUFF_SIZE);
     if((Check_call_exception++) > 100)
@@ -109,10 +119,11 @@ int AT_SIM7600_call_Waitresult(int Calltime)
         }
       }
     }
-    if(AT_read_until((uint8_t *)Buff,(char *)"\r\n",256,500)>0)
+    if((rec_cnt = AT_read_until((uint8_t *)Buff,(char *)"\r\n",256,500))>0)
     {
+      Buff[rec_cnt] =0;
       #if AT_DEBUG
-        Debug.printf("result: %s\n",Buff);
+        Debug.printf("result: %s;;\n",Buff);
       #endif
       if(strstr(Buff,"NO CARRIER")) //ket thuc cuoc goi
       {
@@ -153,27 +164,32 @@ int AT_SIM7600_call_Waitresult(int Calltime)
         #if AT_DEBUG
           Debug.printf("CALL END \n");
         #endif
-        char tm[10];
-        start = strstr(Buff,"END:");
-        stop = strstr(start,"\r\n");
-        if((start) && (stop))
-        {
-          int s = strlen(start) - strlen(stop)-4;
-          if(s >0)
+        if(start = strstr(Buff,"END: "))
+        {  
+          if(stop = strstr(start,"\r\n"))
           {
+            Debug.printf("???????\n");
+            int s = strlen(start) - strlen(stop)-4;
+            if(s >0)
+            {
 
-            memcpy(tm,start+4,s);
-            tm[s]=0;
-            #if AT_DEBUG
-              Debug.printf("time got : %s\n",tm);
-            #endif
-            s = atoi(tm);
-            return ((s/100 *60) +(s%100))*1000;
+              memcpy(tm,start+4,s);
+              tm[s]=0;
+              #if AT_DEBUG
+                Debug.printf("time got : %s\n",tm);
+              #endif
+              s = atoi(tm);
+              return ((s/100 *60) +(s%100))*1000;
+            }
           }
         }
         #if AT_DEBUG
               Debug.printf("get time fail\n");
         #endif
+        if(Module_type == TYPE_A7600C) //no answer
+        {
+            return 0;
+        }
         return millis()-timecallstart;
         /* code */
       }
@@ -206,35 +222,90 @@ int AT_SIM7600_call_Waitresult(int Calltime)
       }
     }
   }
-  At_Command((char *)"AT+CHUP",(char *)"OK\r\n",2000);
-  start = strstr(AT_Buff,"END:");
-  stop = strstr(start,"\r\n");
-  if((start) && (stop))
+  int Res = 0;
+  if(Module_type == TYPE_A7600C)
   {
-    int s = strlen(start) - strlen(stop)-4;
-    if(s >0)
-    {
-
-      memcpy(tm,start+4,s);
-      tm[s]=0;
-      #if AT_DEBUG
-        s = atoi(tm);
-        Debug.printf("time got : %s <=> %ds\n",tm,s);
-      #endif
-      
-      return ((s/100 *60) +(s%100))*1000;
+    At_Command((char *)"AT+CVHU=0",(char *)"OK\r\n",9000);
+    At_Command((char *)"ATH",(char *)"OK\r\n",9000);
+    if(start = strstr(AT_Buff,"END:"))
+    {  
+      if(stop = strstr(start,"\r\n"))
+      {
+        if(Find_StringNumber(tm,AT_Buff,6,0) == 6)
+        {
+          int s; 
+          s = atoi(tm);
+          #if AT_DEBUG
+            Debug.printf("time got : %s <=> %ds\n",tm,s);
+          #endif
+          Res=  ((s/100 *60) +(s%100))*1000;
+        }
+        else
+        {
+          Res= 0;
+        }
+      }
     }
+    else
+    {
+      At_Command((char *)"AT+CHUP",(char *)"OK\r\n",9000);
+      if(start = strstr(AT_Buff,"END:"))
+      {  
+        if(stop = strstr(start,"\r\n"))
+        {
+          if(Find_StringNumber(tm,AT_Buff,6,0) == 6)
+          {
+            int s; 
+            s = atoi(tm);
+            #if AT_DEBUG
+              Debug.printf("time got : %s <=> %ds\n",tm,s);
+            #endif
+            Res= ((s/100 *60) +(s%100))*1000;
+          }
+          else
+          {
+            Res= 0;
+          }
+        }
+      }
+    } 
+    return Res;
+  }
+  else
+  {
+    At_Command((char *)"AT+CHUP",(char *)"OK\r\n",9000);
+    if(start = strstr(AT_Buff,"END: "))
+    {  
+      if(stop = strstr(start,"\r\n"))
+      {
+        int s = strlen(start) - strlen(stop)-4;
+        if(s >0)
+        {
+          memcpy(tm,start+4,s);
+          tm[s]=0;
+          
+            s = atoi(tm);
+          #if AT_DEBUG
+            Debug.printf("time got : %s <=> %ds\n",tm,s);
+          #endif
+          
+          Res= ((s/100 *60) +(s%100))*1000;
+        }
+      }
+    }
+    return Res;
   }
   #if AT_DEBUG
         Debug.printf("get time fail\n");
   #endif
+  
   return Calltime*1000;
 }
 
 
 int AT_Call_Hangup(void)
 {
-  if(At_Command((char *)"AT+CHUP",(char *)"OK\r\n",3000)>0)   
+  if(At_Command((char *)"AT+CHUP",(char *)"OK\r\n",9000)>0)   
     return 1;
   if(At_Command((char *)"ATH",(char *)"OK\r\n",3000)>0)   
     return 1;

@@ -14,15 +14,21 @@
 #define RST_SIM_OFF() digitalWrite(RST_SIM, HIGH)
 
 char AT_Buff[1024];
+char AT_Buff_Free[1025] = {0};
+uint16_t AT_Buff_Free_cnt = 0;
  int AT_Getstring_index(char *des,char *scr,char *key,int index);
 int AT_Getint_index(int *res,char *src,char *key,int index);
 void AT_Free_rx_buffer(void)
 {
   while( AT_Port.available() > 0) {
+    AT_Buff_Free[AT_Buff_Free_cnt] = AT_Port.read();
+    AT_Buff_Free_cnt++;
+    if(AT_Buff_Free_cnt >1023)
+    {
+      AT_Buff_Free_cnt =0;
+    }
     #if AT_DEBUG
-      Debug.printf("%c",AT_Port.read());
-    #else
-      AT_Port.read();
+      Debug.printf(">%s",AT_Buff_Free);
     #endif
   }
 }

@@ -47,6 +47,7 @@ void __disconnet()
 		res = At_Command((char *)"ATH",(char *)"NO CARRIER",3000);
 	}
 }
+
 /*
     khoi tao cac ham co ban cho sim 8000
 */
@@ -106,50 +107,32 @@ int AT_Device_Init(int baud)
 int AT_Get_Sim_IMEI(char *Imei) 
 {
   AT_Send((char *)"AT+CIMI");
-  uint8_t des[1024] = {0};
+  uint8_t des[101] = {0};
   if(AT_read_until(des,(char *)"OK\r\n",100,2000)>10)
   {
     if(strstr((char *)des,"OK"))
     {
-      char *sub = strstr((char *)des+2,"\r\n");
-      uint8_t len = strlen((char *)des+2)-strlen(sub);
-      if((len <=0)|| (len >20))
-        return -1;
-      memcpy(Imei,des+2,len);
-      uint8_t s;
-      for(uint8_t i=0;i<len;i++)
+      if(Find_StringNumber(Imei,(char *)des,15,0)==15)
       {
-        s = Imei[i]-0x30;
-        if(s>9)
-          return -1;
+        return 15;
       }
-      return len;  //AT_Get_Sim_IMEI
     }
   }
   return -1;
-
 }
 int AT_Get_Module_IMEI(char *Imei) 
 {
   AT_Send((char *)"AT+GSN");
-  uint8_t des[1024] = {0};
+  uint8_t des[101] = {0};
   if(AT_read_until(des,(char *)"OK\r\n",100,2000)>10)
   {
     if(strstr((char *)des,"OK"))
     {
-      char *sub = strstr((char *)des+2,"\r\n");
-      uint8_t len = strlen((char *)des+2)-strlen(sub);
-      if((len <=0)|| (len >20))
-        return -1;
-      memcpy(Imei,des+2,len);
-      uint8_t s;
-      for(uint8_t i=0;i<len;i++)
+      uint8_t len;
+      if(Find_StringNumber(Imei,(char *)des,15,0)==15)
       {
-        s = Imei[i]-0x30;
-        if(s>9)
-          return -1;
+        return 15;
       }
-      return len;
     }
   }
   return -1;

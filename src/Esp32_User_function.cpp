@@ -80,7 +80,7 @@ void Module_detect(void){
       {
         Module_type = TYPE_A7600C;
         sprintf(Moduletype,"7");
-        Debug.println("Detechted 7600");
+        Debug.println("Detechted A7600");
         At_Command((char *)"AT+CGSOCKCONT=1,\"IP\",\"myapn\"",(char *)"OK\r\n",5000);
         break;
       }
@@ -167,7 +167,7 @@ static void Btn_task( void * pvParameters ){
     }
   } 
 }
-
+#ifdef USE_WIFI
 void User_wifi_start(void)
 {
     if(Wifi_status)
@@ -188,6 +188,7 @@ void User_wifi_start(void)
     else
         Debug.printf("Turn off wifi\n");
 }
+#endif
 int Modem_Lock_Band_3G()
 {
   uint8_t cnt_t =5;
@@ -360,18 +361,38 @@ int AT_Get_Phone_Activity_Status(void)
 {
   if(At_Command_nodebug((char *)"AT+CPAS",(char *)"OK\r\n",5000))
   {
-    if(strstr(AT_Buff,(char *)"CPAS: 0"))
+    if(strstr(AT_Buff,(char *)"CPAS: 4")) //Call in progress
+    { 
+      
+      Debug.printf("*");
+      uint8_t cnt =5;
+      if( Module_type == TYPE_A7600C)
+      {
+          return 4;
+      }
+      else
+      {
+              cnt =5;
+              while(cnt --)
+              {
+                if(AT_Call_Hangup()>0)
+                  break;
+              }
+              return 4;
+      }
+    }
+    else if(strstr(AT_Buff,(char *)"CPAS: 0"))
       return 0;
     else if(strstr(AT_Buff,(char *)"CPAS: 1"))
       return 1;
     else if(strstr(AT_Buff,(char *)"CPAS: 2"))
       return 2;
-    else if(strstr(AT_Buff,(char *)"CPAS: 3"))   //Ringing
+    if(strstr(AT_Buff,(char *)"CPAS: 3"))   //Ringing
     {
       Debug.println("call detected");
       uint8_t tmp[256] = {0};
       uint8_t i =0;
-      for( i=0;i<20;i++)
+      for( i=0;i<30;i++)
       {
         if(At_Command((char *)"ATA",(char *)"OK",1000) > 0)
         {
@@ -414,22 +435,12 @@ int AT_Get_Phone_Activity_Status(void)
       }
       return 3;
     }
-    else if(strstr(AT_Buff,(char *)"CPAS: 4")) //Call in progress
-    { 
-      Debug.printf("CPAS: 4\n");
-      uint8_t cnt =5;
-      while(cnt --)
-      {
-        if(AT_Call_Hangup()>0)
-          break;
-      }
-      return 4;
-    }
     else
       return 5;
   }
   return -1;
 }
+#ifdef USE_WIFI
 int Wifi_is_connected(void)
 {
   if(!Wifi_status)
@@ -526,7 +537,7 @@ int Wifi_Http_ota(char *url)
   esp_http_client_cleanup(client);
   return -1;
 }
-
+#endif
 int Get_value(char *des,char *scr,char *key)
 {
   char *start = strstr(scr,key);
@@ -548,7 +559,12 @@ void Send_report(char *sdt)
     char tmp[256];
   char call_default[50]={0};
   //AT_Get_Cellid(Lac,Ci);// long: %s;lat: %s;lac: %s;Ci: %s;-longitude,latitude,Lac,Ci,
+  #ifdef USE_WIFI
   int s = sprintf(tmp,"[%lu]Id: %d;IDS=%s;n: IDM=%s;n: Url: %s;n: %s;Wifi : %d,%s,%s",millis(),ID_partner,SimImei,ModuleImei,Url,PhoneNum_Report,Wifi_status,Wifi_Ssid,Wifi_Pass);
+  #else
+  int s = sprintf(tmp,"[%lu]Id: %d;IDS=%s;n: IDM=%s;n: Url: %s;n: %s",millis(),ID_partner,SimImei,ModuleImei,Url,PhoneNum_Report);
+
+  #endif
   Debug.printf("send %d byte: %s TO %s:",s,tmp,sdt);
   AT_Sms_Send(sdt,tmp);
 }
@@ -641,6 +657,7 @@ int Sms_Process(char *info,char *content)
       send_report_sms =1;
     //return 1;
   }
+  #ifdef USE_WIFI
   else if(Get_value(valtmp,content,(char *)"wifi:")>0)
   {
     char ssid_new[33];
@@ -670,6 +687,7 @@ int Sms_Process(char *info,char *content)
           Debug.printf("sms set wifi error\n");
       }
   }
+  #endif
   else if(strstr(content," OTP"))
   {
 
@@ -746,31 +764,38 @@ void EEPROM_Process(void)
     if(!Eeprom_Is_Init_Value())
     {
       Debug.printf("set default all\n");
+      #ifdef USE_WIFI
       Eeprom_Set_Ssid_Pass((char *)SSID_DEFAULT,(char *)PASS_DEFAULT);      //defaule wifi
+      Eeprom_Set_Wifi_status(STATUS_WIFI_DEFALUT);
+      Eeprom_Set_call_default((char *)CALL_DEFAULT);
+      #endif
       Eeprom_Set_IDpartner(ID_DEFAULT);
       Eeprom_Set_Url((char *)URL_DEFAULT);    
       Eeprom_Set_phoneNum((char *)PHONE_DEFAULT); 
-      Eeprom_Set_Wifi_status(STATUS_WIFI_DEFALUT);
-      Eeprom_Set_call_default((char *)CALL_DEFAULT);
+
       Eeprom_Set_result_call(0,0);
       Set_Eeprom_Is_Init_Value();
     }
     ID_partner = Eeprom_Get_IDpartner();
+    #ifdef USE_WIFI
     Wifi_status = Eeprom_Get_Wifi_status();
     Eeprom_Get_Ssid(Wifi_Ssid);
     Eeprom_Get_Password(Wifi_Pass);
+    #endif
     Eeprom_Get_Url(Url);
     if(!strstr(Url,".com"))
     {
         sprintf(Url,URL_DEFAULT);
         Eeprom_Set_Url(Url); 
     }
+    #ifdef USE_WIFI
     if((strlen(Wifi_Ssid) == 0) ||(strlen(Wifi_Pass) == 0))
     {
         sprintf(Wifi_Ssid,SSID_DEFAULT);
         sprintf(Wifi_Pass,PASS_DEFAULT);
         Eeprom_Set_Ssid_Pass(Wifi_Ssid,Wifi_Pass); 
     }
+    #endif
 }
 
 void Process_call(void)
@@ -845,14 +870,17 @@ void Http_request(int Try_times)
 {
     answer = 0;
     Http_Try = Try_times;
+    memset(Http_res,0,256);
+    #ifdef USE_WIFI
     if(!Wifi_is_connected())
       {
+    #endif
           Check_sim_ready();
           Debug.println("Requet over module sim");
           //
           if(Module_type == TYPE_UC15)
             answer= AT_UC15_HTTP_Get(URL_REQUEST,Http_res);
-          else if((Module_type == TYPE_SIM7600CE) ||(Module_type == TYPE_A7600C) || 
+          else if((Module_type == TYPE_SIM7600CE)  || 
                   (Module_type == TYPE_SIM5320E))  
           {
             answer= AT_SIM7600_HTTP_Get(URL_REQUEST,Http_res);
@@ -863,13 +891,16 @@ void Http_request(int Try_times)
           // } 
           else //Module_type == TYPE_SIM5300E
           {  
-            answer = AT_Http_Request(URL_REQUEST,Http_res);}
+            answer = AT_Http_Request(URL_REQUEST,Http_res);
           }
+      #ifdef USE_WIFI
+      }
       else
       {
           Debug.println("Requet over wifi");
           answer = Wifi_Http_request(URL_REQUEST,Http_res);
       }
+      #endif
 }
 
 
@@ -886,7 +917,6 @@ void Process_result_from_http(void)
 {
     if(answer ==200)
     {
-        New_Otp=0;
         Calltime = 0; // reset time call
         Debug.printf("HTTP_request: %d-> %s",answer,Http_res);
         /*---------------ota----------------------*/
@@ -967,4 +997,38 @@ void Check_sim_ready(void)
     }
     ESP.restart();
   }
+}
+int Find_StringNumber(char *des,char *src, int bNum,int matchtype)
+{
+    matchtype = matchtype;
+    int i,j;
+    int src_len = strlen(src);
+    for(int i =0;i< src_len;i++)
+    {
+        if((src[i] >= 0x30) && (src[i] <= 0x39)) // get only number
+        {
+          if((i+bNum) > src_len)
+          {
+            return -1;
+          }
+          for(j=i;j<(bNum+i);j++)
+          {
+            if(!((src[j] >= 0x30) && (src[j] <= 0x39)))
+            {
+              break;
+            }
+          }
+          if(j == (bNum+i))
+          {
+            memcpy(des,&src[i],bNum);
+            des[bNum]=0;
+            return bNum;
+          }
+          else
+          {
+              i+=bNum;
+          }
+        }
+    }
+    return -1;
 }

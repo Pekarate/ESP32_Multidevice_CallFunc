@@ -139,7 +139,12 @@ int AT_SIM7600_HTTP_Get(char * request_url,char *rsp)
             if((end = strstr(start+4,"\r\n")))
             {
               sizess = (int)end - int(start)-4;
-              memcpy(rsp,start +4,sizess);
+              if(sizess>0)
+              {
+                memcpy(rsp,start +4,sizess);
+                rsp[sizess] =0;
+              }
+              
               #if AT_DEBUG
                 Debug.printf("reqeuest successful %d byte:%s\n",sizess,rsp);
               #endif
@@ -176,12 +181,15 @@ int AT_Http_Request(char * request_url,char *rsp)
   //At_Command((char *)"AT+HTTPSTATUS?",(char *)"OK\r\n",5000);
   if(!Is_Http_Init)
   {
-    if(At_Command((char *)"AT+SAPBR=2,1",(char *)"SAPBR: 1,1",10000)<0)
+    if( Module_type != TYPE_A7600C)
     {
-      At_Command((char *)"AT+CGATT=1",(char *)"OK\r\n",2000);
-      At_Command((char *)"AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"",(char *)"OK",2000);
-      At_Command((char *)"AT+SAPBR=3,1,\"APN\",\"CMNET\"",(char *)"OK",5000);
-      At_Command((char *)"AT+SAPBR=1,1",(char *)"OK\r\n",10000);
+      if(At_Command((char *)"AT+SAPBR=2,1",(char *)"SAPBR: 1,1",10000)<0)
+      {
+        At_Command((char *)"AT+CGATT=1",(char *)"OK\r\n",2000);
+        At_Command((char *)"AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"",(char *)"OK",2000);
+        At_Command((char *)"AT+SAPBR=3,1,\"APN\",\"CMNET\"",(char *)"OK",5000);
+        At_Command((char *)"AT+SAPBR=1,1",(char *)"OK\r\n",10000);
+      }
     }
     At_Command((char *)"AT+HTTPINIT",(char *)"OK\r\n",5000);
     At_Command((char *)"AT+HTTPPARA=\"CID\",1",(char *)"OK\r\n",5000);
@@ -210,7 +218,7 @@ int AT_Http_Request(char * request_url,char *rsp)
   if(cnt == 10)
   {
     Buff[len]=0;
-    //Debug.printf(" result :%s\n",Buff);
+    Debug.printf(" result :%s\n",Buff);
     if((tmp = AT_Getint_index(&Status_Code,Buff,(char *)": ",1))>0)
     {
       if(AT_Getint_index(&Content_length,Buff,(char *)": ",2)>0)
@@ -219,7 +227,15 @@ int AT_Http_Request(char * request_url,char *rsp)
         if(Status_Code ==200)
         {
           Is_Http_Init = 1;
-          int r = AT_Http_Read_Data(rsp,100);
+          int r;
+          if( Module_type = TYPE_A7600C)
+          {
+            r= AT_SIM7600_Http_Read_Data(rsp,Content_length);
+          }
+          else{
+            r= AT_Http_Read_Data(rsp,100);
+          }
+           
           Debug.printf("Content_length: %d,Http_read_data: %d\r\n",Content_length,r);
           if(r == Content_length)
           {

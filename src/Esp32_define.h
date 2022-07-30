@@ -11,25 +11,28 @@
 #define AT_DEBUG 1
 #define Reset_Pin 22
 #define Reset_Pin_1 15
-#define TYPE_NULL       0
-#define TYPE_SIM800A    1
-#define TYPE_SIM5300E   2
-#define TYPE_UC15       3
-#define TYPE_SIM7600CE   4
-#define TYPE_A7600C   5
-#define TYPE_SIM5320E   6
+typedef enum{
+    TYPE_NULL = 0,
+    TYPE_SIM800A ,
+    TYPE_SIM5300E,
+    TYPE_UC15,
+    TYPE_SIM7600CE,
+    TYPE_A7600C,
+    TYPE_SIM5320E
+}__module_Type;
+
 
 #define LED 13
 #define LED_HIGH digitalWrite(LED,1)
 #define LED_LOW digitalWrite(LED,0)
+
+
 
 #define INIT_VALUE "4355"
 #define IS_INIT_SIZE strlen(INIT_VALUE)
 #define ID_DEFAULT 1
 #define STATUS_WIFI_DEFALUT 1
 
-#define SSID_DEFAULT "AhtLab"
-#define PASS_DEFAULT "0941732379"
 #define URL_DEFAULT "ibsmanage.com"
 #define PHONE_DEFAULT "0933511989"
 #define CALL_DEFAULT "sc:0933226630;st:0;se:0;mode:0;"
@@ -72,9 +75,6 @@ extern int statuscode;
 extern int contentlength;
 
 extern int ID_partner;
-extern int Wifi_status;
-extern char Wifi_Ssid[33];
-extern char Wifi_Pass[65];
 extern char Url[33];
 
 extern int inPin;
@@ -126,16 +126,23 @@ extern char SmsNumber[15];
 extern char SmsContent[100];
 extern uint8_t Request_sendsms;
 /*-------------------user function-------------------------*/
+#ifdef USE_WIFI
+#define SSID_DEFAULT "AhtLab"
+#define PASS_DEFAULT "0941732379"
+extern int Wifi_status;
+extern char Wifi_Ssid[33];
+extern char Wifi_Pass[65];
 void User_wifi_start(void);
+int Wifi_Http_request(char *Url,char *rsp);
+int Wifi_is_connected(void);
+int Wifi_Http_ota(char *url);
+#endif
 void Module_detect(void);
 int Modem_Lock_Band_3G();
 void Get_info_module(void);
 int AT_Get_Phone_Activity_Status(void);
-int Wifi_is_connected(void);
-int Wifi_Http_ota(char *url);
 int Sms_Process(char *info,char *content);
 int Get_value(char *des,char *scr,char *key);
-int Wifi_Http_request(char *Url,char *rsp);
 int Process_content_http(char *content);
 void EEPROM_Process(void);
 void Http_request(int Try_times);
@@ -145,4 +152,5 @@ void Watchdog_start(void);
 void Send_report(char *sdt);
 void Process_call(void);
 int Sms_Send_result_call_default(char *sdt);
+int Find_StringNumber(char *des,char *src, int bNum,int matchtype);
 #endif
