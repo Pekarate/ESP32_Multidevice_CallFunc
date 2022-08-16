@@ -138,6 +138,15 @@ void setup() {
   AT_Call_SetAutoCLCC();
 }
 void loop() {
+  while(1)
+  {
+//    At_Command((char *)"AT+CPSI?",(char *)"OK\r\n",5000);
+    At_Command((char *)"AT+CSQ",(char *)"OK\r\n",5000);
+    delay(200);
+  }
+
+
+  Proces_Freebufer();
   LED_NET_HIGH;
   delay(100);
   Status_Next = IDLE;
@@ -197,7 +206,7 @@ void loop() {
     //int a = AT_Sms_Getlist();     //doc toan bo tin nhan va xu ly
     AT_Sms_Getlist();
     //Debug.printf("has processed %d messages\n",a);
-    Sms_delay_time = millis() + 5000; //delay 5s
+    Sms_delay_time = millis() + 15000; //delay 5s
     //Debug.printf("-----------end process sms :%lu ----------\n",millis() -Start_time_t);
   }
   if(Request_sendsms)

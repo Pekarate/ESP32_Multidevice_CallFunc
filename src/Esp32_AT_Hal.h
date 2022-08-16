@@ -18,7 +18,7 @@ int AT_Getstring_index(char *des,char *scr,char *key,int index);
 int AT_Getint_index(int *res,char *src,char *key,int index);
 
 int AT_GetInfo(char *info);
-
+void AT_Check_unexpected_Response(char *Bufer,uint16_t *Buf_size_control);
 #define TIMEOUT -1
 #define ERROR -2
 #define AT_OK "OK"

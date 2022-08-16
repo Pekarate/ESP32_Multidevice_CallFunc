@@ -49,6 +49,10 @@ typedef enum{
 extern uint8_t call_incoming;
 extern int Module_type;
 extern char AT_Buff[1024];
+
+extern char AT_Buff_Free[1025];
+extern uint16_t AT_Buff_Free_cnt;
+
 extern int Sms_Process(char *info,char *content);
 
 extern int answer;
@@ -121,10 +125,18 @@ extern uint8_t Http_err_code_cnt;
 extern char OTP_Number[MAX_OTP_BUFFER_LEN+1];
 extern char New_Otp;
 extern int Http_Try;
-
+extern uint8_t NewSMS_Detected;
 extern char SmsNumber[15];
 extern char SmsContent[100];
 extern uint8_t Request_sendsms;
+
+
+#define NUM_UNEXPECTED 2
+extern uint8_t CountUnexpected[NUM_UNEXPECTED];
+typedef enum{
+    CREG =0,
+    NEWSMS
+}UnExpectedType;
 /*-------------------user function-------------------------*/
 #ifdef USE_WIFI
 #define SSID_DEFAULT "AhtLab"

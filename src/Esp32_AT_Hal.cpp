@@ -20,17 +20,27 @@ uint16_t AT_Buff_Free_cnt = 0;
 int AT_Getint_index(int *res,char *src,char *key,int index);
 void AT_Free_rx_buffer(void)
 {
+  #if AT_DEBUG
+  uint8_t bufer_updated =0;
+  #endif
   while( AT_Port.available() > 0) {
+    #if AT_DEBUG
+      bufer_updated =1;
+    #endif
     AT_Buff_Free[AT_Buff_Free_cnt] = AT_Port.read();
     AT_Buff_Free_cnt++;
     if(AT_Buff_Free_cnt >1023)
     {
       AT_Buff_Free_cnt =0;
     }
-    #if AT_DEBUG
-      Debug.printf(">%s",AT_Buff_Free);
-    #endif
   }
+  #if AT_DEBUG
+    if(bufer_updated)
+    {
+      Debug.printf("\n<FREE:%s>\n",AT_Buff_Free);
+      bufer_updated =0;
+    }    
+  #endif
 }
 void AT_Send(char *data)
 {
@@ -54,7 +64,7 @@ void AT_Write(uint8_t *data,uint16_t len)
 int AT_read_until(uint8_t *Des,char *end,uint16_t len,uint32_t timeout)
 {
     uint32_t st = millis()+timeout;
-    uint tot =0;
+    uint16_t tot =0;
     while(millis() < st)
     {   
         if(AT_Port.available() != 0){    
@@ -74,7 +84,14 @@ int AT_read_until(uint8_t *Des,char *end,uint16_t len,uint32_t timeout)
               call_incoming = 1;
               //break;
 
-            } 
+            }
+            if(tot>5) 
+            {
+              if((Des[tot-1] == '\n')&&(Des[tot-2] == '\r'))
+              {
+                AT_Check_unexpected_Response((char *)Des,&tot);
+              }
+            }
         }
         #if ESP32
           timerWrite(timer, 0);  
@@ -84,7 +101,7 @@ int AT_read_until(uint8_t *Des,char *end,uint16_t len,uint32_t timeout)
     #if AT_DEBUG
      //Debug.printf("AT recv %d byte %d\n",tot,(int)(millis() - st));
     #endif
-    
+    AT_Check_unexpected_Response((char *)Des,&tot);
     return tot;
 }
 /*
@@ -104,7 +121,7 @@ int At_Command_Without_Endline(char *cmd ,char *RSP1,uint32_t timeout)
   #endif
   memset(AT_Buff,0,sizeof(AT_Buff));
   uint32_t st = millis()+timeout;
-  uint32_t tot =0;
+  uint16_t tot =0;
   while (millis() < st)
   {   
       if(AT_Port.available() != 0){    
@@ -164,6 +181,7 @@ int At_Command_Without_Endline(char *cmd ,char *RSP1,uint32_t timeout)
     Debug.printf("BAD RSP %d byte %lu ms: %s \n",tot,millis() - st1,AT_Buff_t);
   }
   #endif
+  AT_Check_unexpected_Response(AT_Buff,&tot);
   return res;
 }
 int At_Command(char *cmd ,char *RSP1,uint32_t timeout)
@@ -180,7 +198,7 @@ int At_Command(char *cmd ,char *RSP1,uint32_t timeout)
   #endif
   memset(AT_Buff,0,sizeof(AT_Buff));
   uint32_t st = millis()+timeout;
-  uint32_t tot =0;
+  uint16_t tot =0;
   while (millis() < st)
   {   
       if(AT_Port.available() != 0){    
@@ -190,7 +208,10 @@ int At_Command(char *cmd ,char *RSP1,uint32_t timeout)
           { 
             res = 1;
             if(strstr(AT_Buff+2,(char *)"\r\n")) // read until /r/n
-                  break;
+            {
+              //remove response not unexpected;
+               break;
+            }     
           }
           else
           {
@@ -241,6 +262,7 @@ int At_Command(char *cmd ,char *RSP1,uint32_t timeout)
     Debug.printf("BAD RSP %d byte %lu ms: %s \n",tot,millis() - st1,AT_Buff_t);
   }
   #endif
+  AT_Check_unexpected_Response(AT_Buff,&tot);
   return res;
 }
 int At_Command1(char *cmd ,char *RSP1,uint32_t timeout)
@@ -257,7 +279,7 @@ int At_Command1(char *cmd ,char *RSP1,uint32_t timeout)
   #endif
   memset(AT_Buff,0,sizeof(AT_Buff));
   uint32_t st = millis()+timeout;
-  uint32_t tot =0;
+  uint16_t tot =0;
   while (millis() < st)
   {   
       if(AT_Port.available() != 0){    
@@ -315,6 +337,7 @@ int At_Command1(char *cmd ,char *RSP1,uint32_t timeout)
   }
 
   #endif
+  AT_Check_unexpected_Response(AT_Buff,&tot);
   return res;
 }
 int At_Command_nodebug(char *cmd ,char *RSP1,uint32_t timeout)
@@ -324,7 +347,7 @@ int At_Command_nodebug(char *cmd ,char *RSP1,uint32_t timeout)
   AT_Send(cmd);
   memset(AT_Buff,0,sizeof(AT_Buff));
   uint32_t st = millis()+timeout;
-  uint32_t tot =0;
+  uint16_t tot =0;
   while (millis() < st)
   {   
       if(AT_Port.available() != 0){    
@@ -349,6 +372,7 @@ int At_Command_nodebug(char *cmd ,char *RSP1,uint32_t timeout)
       #endif
   }
   AT_Buff[tot] =0;
+  AT_Check_unexpected_Response(AT_Buff,&tot);
   return res;
 }
 
@@ -431,4 +455,37 @@ int AT_Getint_index(int *res,char *src,char *key,int index)
    }
    *res = atoi(des);
    return *res;
+}
+
+
+char ListUnexpected[NUM_UNEXPECTED][6] = {"+CREG","+CMTI"};
+uint8_t CountUnexpected[NUM_UNEXPECTED] = {0};
+void AT_Check_unexpected_Response(char *Bufer,uint16_t *Buf_size_control)
+{
+    
+   char *st,*end;
+   for(int cnt=0;cnt<NUM_UNEXPECTED;cnt++)
+   {
+      
+       if((st = strstr(Bufer,ListUnexpected[cnt])))
+       {
+          CountUnexpected[cnt]++;
+          printf("check : %s\n",ListUnexpected[cnt]);
+          if(end = strstr(st,"\r\n"))
+          { 
+            end+=2;//remove \r\n
+            uint32_t byte_move_count = Bufer + *Buf_size_control - end;
+            for( int i=0;i<byte_move_count;i++)
+            {
+              *(st+i) = *(end+i);
+            }
+            *Buf_size_control =*Buf_size_control - (end-st);
+          }
+          else
+          {
+            *Buf_size_control = st -Bufer;
+          }
+          Bufer[*Buf_size_control] = 0;
+       }
+   }
 }

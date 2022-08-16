@@ -99,7 +99,7 @@ int AT_Device_Init(int baud)
     } while(answer==0);          // Set SMS into text mode
 
     do { 
-      answer = At_Command((char *)"AT+CNMI=2,0,2,0,0", (char *)"OK\r\n",1000);
+      answer = At_Command((char *)"AT+CNMI=2,1,0,0,0", (char *)"OK\r\n",1000);
     } while(answer==0);  // Set Message mode when receive new SMS
     return 1;
 }

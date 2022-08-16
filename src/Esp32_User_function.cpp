@@ -330,35 +330,61 @@ int AT_Proces_Listen(uint32_t maxTime)
   uint8_t tmp[256] = {0};
   uint32_t Timetmp = millis() + maxTime;
   uint32_t StartTime = millis();
+  uint32_t StartTime1 = millis()+1000;
   while(Timetmp > millis())
   {
-    if(At_Command_nodebug((char *)"AT+CPAS",(char *)"OK\r\n",2000))
+    if(StartTime1 <millis() )
     {
-      if(strstr(AT_Buff,(char *)"CPAS: 0") || strstr(AT_Buff,(char *)"CPAS: 1")||strstr(AT_Buff,(char *)"CPAS: 2"))
-      {
-        printf("return with out endcall detected\r\n");
-        return millis() - StartTime;
-      }
+      At_Command((char *)"AT+CLCC",(char *)"OK\r\n",2000);
+      StartTime1 = millis()+1000;
     }
+    // if(At_Command_nodebug((char *)"AT+CPAS",(char *)"OK\r\n",2000))
+    // {
+    //   if(strstr(AT_Buff,(char *)"CPAS: 0") || strstr(AT_Buff,(char *)"CPAS: 1")||strstr(AT_Buff,(char *)"CPAS: 2"))
+    //   {
+    //     printf("return with out endcall detected\r\n");
+    //     return millis() - StartTime;
+    //   }
+    // }
     int s = AT_read_until(tmp,(char *)"CARRIER",256,5000);
     if(s > 0)
     {
       tmp[s] = 0;
       if(strstr((char *)tmp,"CARRIER")) //end call
       {
+        At_Command((char *)"AT+CLCC",(char *)"OK\r\n",2000);
         return millis() - StartTime;
       }
     }
-    AT_Sms_Getlist();
-    if(New_Otp)
+    if(CountUnexpected[NEWSMS])
     {
-      return millis() - StartTime;
+      AT_Sms_Getlist();
+      if(New_Otp)
+      {
+        return millis() - StartTime;
+      }
     }
+    
   }
   return maxTime;
 }
+
+uint32_t StartTime1111 = 0;
 int AT_Get_Phone_Activity_Status(void)
 {
+  if( Module_type == TYPE_A7600C)
+  {
+
+      if(At_Command_nodebug((char *)"AT+CLCC",(char *)"OK\r\n",2000))
+      {
+        if(strstr(AT_Buff,"+CLCC:"))
+        {
+          
+        }
+        return 1;
+      }
+      return 1;
+  }  
   if(At_Command_nodebug((char *)"AT+CPAS",(char *)"OK\r\n",5000))
   {
     if(strstr(AT_Buff,(char *)"CPAS: 4")) //Call in progress
@@ -389,6 +415,7 @@ int AT_Get_Phone_Activity_Status(void)
       return 2;
     if(strstr(AT_Buff,(char *)"CPAS: 3"))   //Ringing
     {
+      At_Command((char *)"AT+CLCC",(char *)"OK\r\n",2000);
       Debug.println("call detected");
       uint8_t tmp[256] = {0};
       uint8_t i =0;
@@ -1031,4 +1058,13 @@ int Find_StringNumber(char *des,char *src, int bNum,int matchtype)
         }
     }
     return -1;
+}
+
+void Proces_Freebufer(void)
+{
+  if(AT_Buff_Free_cnt)
+  {
+    memset(AT_Buff_Free,0,AT_Buff_Free_cnt);
+    AT_Buff_Free_cnt;
+  }
 }

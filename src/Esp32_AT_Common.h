@@ -4,4 +4,5 @@
 int AT_Device_Init(int baud);
 int AT_Get_Module_IMEI(char *Imei);
 int AT_Get_Sim_IMEI(char *Imei);
+void Proces_Freebufer(void);
 #endif

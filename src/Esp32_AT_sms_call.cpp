@@ -57,11 +57,15 @@ int AT_call_Waitresult(int Calltime)
         return 0;
       }
     }
-    AT_Sms_Getlist();
-    if(New_Otp) //end call if send OTP fail
+    if(CountUnexpected[NEWSMS])
     {
-      break;
+      AT_Sms_Getlist();
+      if(New_Otp) //end call if send OTP fail
+      {
+        break;
+      }
     }
+   
     if(millis() - st > Calltime*1000)
       break;
     if((Check_call_exception++) > 5)
@@ -202,14 +206,18 @@ int AT_SIM7600_call_Waitresult(int Calltime)
       }
     }
 
-    AT_Sms_Getlist();
-    if(New_Otp)   //end call if send OTP fail
+    if(CountUnexpected[NEWSMS])
     {
-    #if AT_DEBUG
-        Debug.printf("have new OTP => end\n");
-    #endif
-      break;
+      AT_Sms_Getlist();
+      if(New_Otp)   //end call if send OTP fail
+      {
+      #if AT_DEBUG
+          Debug.printf("have new OTP => end\n");
+      #endif
+        break;
+      }
     }
+
     
     if(callbegin)
     {
@@ -382,7 +390,6 @@ int AT_Sms_Getlist()
   //At_Command((char *)"AT+CMGF=1", (char *)"OK\r\n",1000);
   AT_Send((char *)"AT+CMGL=\"ALL\"");
   int tot =AT_read_until((uint8_t *)data,(char *)"OK\r\n",1024,2000);
-  //Debug.printf("Message read: -------------\n%s\n----------------",data);
   if((!strstr(data,(char *)"OK\r\n")) && (!strstr(data,(char *)"ERROR"))) ///co cuoc goi toi
   {
     //Debug.printf("Message read continue..\n");
@@ -421,6 +428,7 @@ int AT_Sms_Getlist()
      Check_sim_ready();
   if(strstr(data,"+CMGL"))
   {
+      Debug.printf("Message read: -------------\n%s\n----------------",data);
     if((strstr(data,"status?")!=0) || (strstr(data,"server:")!=0)|| (strstr(data,"p:")!=0) || (strstr(data,"wifi:")!=0)
      || (strstr(data,"sc:")!=0) || (strstr(data,"sdt:")!=0)|| (strstr(data,"mode:")!=0) || (strstr(data," OTP")!=0))
     {

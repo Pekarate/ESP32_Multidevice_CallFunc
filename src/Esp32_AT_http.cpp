@@ -228,7 +228,7 @@ int AT_Http_Request(char * request_url,char *rsp)
         {
           Is_Http_Init = 1;
           int r;
-          if( Module_type = TYPE_A7600C)
+          if( Module_type == TYPE_A7600C)
           {
             r= AT_SIM7600_Http_Read_Data(rsp,Content_length);
           }
