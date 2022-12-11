@@ -872,11 +872,9 @@ void Process_call(void)
           int res;
           if((Module_type == TYPE_SIM7600CE) || (Module_type == TYPE_A7600C) || (Module_type == TYPE_SIM5320E))
           {
-            Debug.printf("Call ok:%d s\n",Module_type);
             res = AT_SIM7600_call_Waitresult(Calltime);
           }
           else{
-            Debug.printf("Call1111 ok:%d s\n",Module_type);
             delay(TIME_CONNECT);  // delay for connect
             res = AT_call_Waitresult(Calltime);
           }
@@ -951,7 +949,6 @@ void Process_result_from_http(void)
     if(answer ==200)
     {
         Calltime = 0; // reset time call
-        sprintf(Http_res,"$ussd:*101#;");
         Debug.printf("HTTP_request: %d-> %s",answer,Http_res);
         /*---------------ota----------------------*/
         // char ver_t[50];
