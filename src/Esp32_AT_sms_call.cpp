@@ -170,7 +170,8 @@ int AT_SIM7600_call_Waitresult(int Calltime)
         #endif
         if(start = strstr(Buff,"END: "))
         {  
-          if(stop = strstr(start,"\r\n"))
+          stop = strstr(start,"\r\n");
+          if(stop)
           {
             Debug.printf("???????\n");
             int s = strlen(start) - strlen(stop)-4;
@@ -235,7 +236,8 @@ int AT_SIM7600_call_Waitresult(int Calltime)
   {
     At_Command((char *)"AT+CVHU=0",(char *)"OK\r\n",9000);
     At_Command((char *)"ATH",(char *)"OK\r\n",9000);
-    if(start = strstr(AT_Buff,"END:"))
+    start = strstr(AT_Buff,"END:");
+    if(start)
     {  
       if(stop = strstr(start,"\r\n"))
       {
@@ -282,7 +284,8 @@ int AT_SIM7600_call_Waitresult(int Calltime)
   else
   {
     At_Command((char *)"AT+CHUP",(char *)"OK\r\n",9000);
-    if(start = strstr(AT_Buff,"END: "))
+    start = strstr(AT_Buff,"END: ");
+    if(start)
     {  
       if(stop = strstr(start,"\r\n"))
       {
@@ -484,3 +487,12 @@ int AT_Sms_Send(char* input_number,char* msg)
   }
   return -1;
 } 
+int AT_Call_Ussd(char *reqstr)
+{
+  char AT_cmd[100];
+  sprintf(AT_cmd,"AT+CUSD=1,\"%s\"",reqstr);
+  At_Command(AT_cmd, (char *)"OK\r\n", 10000); 
+  delay(2000);
+  sprintf(AT_cmd,"AT+CUSD=0");
+  At_Command(AT_cmd, (char *)"OK\r\n", 2000); 
+}

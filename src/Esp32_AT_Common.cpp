@@ -128,7 +128,6 @@ int AT_Get_Module_IMEI(char *Imei)
   {
     if(strstr((char *)des,"OK"))
     {
-      uint8_t len;
       if(Find_StringNumber(Imei,(char *)des,15,0)==15)
       {
         return 15;

@@ -583,8 +583,8 @@ int Get_value(char *des,char *scr,char *key)
 }
 void Send_report(char *sdt)
 {
-    char tmp[256];
-  char call_default[50]={0};
+  char tmp[256];
+  // char call_default[50]={0};
   //AT_Get_Cellid(Lac,Ci);// long: %s;lat: %s;lac: %s;Ci: %s;-longitude,latitude,Lac,Ci,
   #ifdef USE_WIFI
   int s = sprintf(tmp,"[%lu]Id: %d;IDS=%s;n: IDM=%s;n: Url: %s;n: %s;Wifi : %d,%s,%s",millis(),ID_partner,SimImei,ModuleImei,Url,PhoneNum_Report,Wifi_status,Wifi_Ssid,Wifi_Pass);
@@ -770,7 +770,11 @@ int Process_content_http(char *content)
       Request_sendsms = 1;
     }
   }
-  if(Get_value(CallPhone,content,(char *)"$c:")>0)
+  else if(Get_value(UssdContent,content,(char *)"$ussd:")>0)
+  {
+    Request_sendussd = 1;
+  }
+  else if(Get_value(CallPhone,content,(char *)"$c:")>0)
   {
     if(Get_value(tmp,content,(char *)"$t:")>0)
     {
@@ -868,9 +872,11 @@ void Process_call(void)
           int res;
           if((Module_type == TYPE_SIM7600CE) || (Module_type == TYPE_A7600C) || (Module_type == TYPE_SIM5320E))
           {
+            Debug.printf("Call ok:%d s\n",Module_type);
             res = AT_SIM7600_call_Waitresult(Calltime);
           }
           else{
+            Debug.printf("Call1111 ok:%d s\n",Module_type);
             delay(TIME_CONNECT);  // delay for connect
             res = AT_call_Waitresult(Calltime);
           }
@@ -935,7 +941,7 @@ void Http_request(int Try_times)
 void Send_report_http_code(char *sdt)
 {
   char tmp[256];
-  int s = sprintf(tmp,"%lu %d %d %d %d %d %d %d %d %d %d",millis(),Http_err_code[0],Http_err_code[1],Http_err_code[2],Http_err_code[3],Http_err_code[4],Http_err_code[5],Http_err_code[6],Http_err_code[7],Http_err_code[8],Http_err_code[9]);
+  sprintf(tmp,"%lu %d %d %d %d %d %d %d %d %d %d",millis(),Http_err_code[0],Http_err_code[1],Http_err_code[2],Http_err_code[3],Http_err_code[4],Http_err_code[5],Http_err_code[6],Http_err_code[7],Http_err_code[8],Http_err_code[9]);
   //Debug.printf("send %d byte: %s TO %s:",s,tmp,sdt);
   AT_Sms_Send(sdt,tmp);
 }
@@ -945,6 +951,7 @@ void Process_result_from_http(void)
     if(answer ==200)
     {
         Calltime = 0; // reset time call
+        sprintf(Http_res,"$ussd:*101#;");
         Debug.printf("HTTP_request: %d-> %s",answer,Http_res);
         /*---------------ota----------------------*/
         // char ver_t[50];
@@ -954,7 +961,7 @@ void Process_result_from_http(void)
         //     Debug.printf("new version %s is availability\n",ver_t);
         //     Wifi_Http_ota(URL_REQUEST);
         // }
-
+        
         if( Process_content_http(Http_res)>0)
         {
           Callrequest=1;
@@ -990,7 +997,6 @@ void Process_result_from_http(void)
           Debug.println("Http Erro => restart module");
           delay(10000);
           ESP.restart();
-
       }
       delay(2000);
     }
@@ -1030,7 +1036,7 @@ int Find_StringNumber(char *des,char *src, int bNum,int matchtype)
     matchtype = matchtype;
     int i,j;
     int src_len = strlen(src);
-    for(int i =0;i< src_len;i++)
+    for (i =0;i< src_len;i++)
     {
         if((src[i] >= 0x30) && (src[i] <= 0x39)) // get only number
         {
@@ -1065,6 +1071,6 @@ void Proces_Freebufer(void)
   if(AT_Buff_Free_cnt)
   {
     memset(AT_Buff_Free,0,AT_Buff_Free_cnt);
-    AT_Buff_Free_cnt;
+    AT_Buff_Free_cnt = 0;
   }
 }

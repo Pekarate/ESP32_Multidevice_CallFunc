@@ -91,7 +91,9 @@ int Http_Try =3;
 
 char SmsNumber[15]={0};
 char SmsContent[100]={0};
+char UssdContent[100]={0};
 uint8_t Request_sendsms = 0;
+uint8_t Request_sendussd = 0;
 uint8_t smsOTP_Try = 3;
 void setup() {
   // put your setup code here, to run once:
@@ -138,13 +140,6 @@ void setup() {
   AT_Call_SetAutoCLCC();
 }
 void loop() {
-  while(1)
-  {
-//    At_Command((char *)"AT+CPSI?",(char *)"OK\r\n",5000);
-    At_Command((char *)"AT+CSQ",(char *)"OK\r\n",5000);
-    delay(200);
-  }
-
 
   Proces_Freebufer();
   LED_NET_HIGH;
@@ -212,6 +207,15 @@ void loop() {
   if(Request_sendsms)
   {
       AT_Sms_Send(SmsNumber, SmsContent);
+      Request_sendsms = 0;
+      memset(SmsNumber,0,sizeof(SmsNumber));
+      memset(SmsContent,0,sizeof(SmsContent));
+  }
+  if(Request_sendussd)
+  {
+      AT_Call_Ussd(UssdContent);
+      Request_sendussd = 0;
+      memset(UssdContent,0,sizeof(UssdContent));
   }
   // if(millis()>3600000)
   // {

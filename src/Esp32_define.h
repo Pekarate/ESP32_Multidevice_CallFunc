@@ -128,7 +128,9 @@ extern int Http_Try;
 extern uint8_t NewSMS_Detected;
 extern char SmsNumber[15];
 extern char SmsContent[100];
+extern char UssdContent[100];
 extern uint8_t Request_sendsms;
+extern uint8_t Request_sendussd;
 
 
 #define NUM_UNEXPECTED 2

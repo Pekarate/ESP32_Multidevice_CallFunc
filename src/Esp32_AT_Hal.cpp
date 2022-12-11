@@ -471,7 +471,8 @@ void AT_Check_unexpected_Response(char *Bufer,uint16_t *Buf_size_control)
        {
           CountUnexpected[cnt]++;
           printf("check : %s\n",ListUnexpected[cnt]);
-          if(end = strstr(st,"\r\n"))
+          end = strstr(st,"\r\n");
+          if (end)
           { 
             end+=2;//remove \r\n
             uint32_t byte_move_count = Bufer + *Buf_size_control - end;
